@@ -1,0 +1,10 @@
+speed decimal any 0.1
+cruise_speed decimal any 0.1
+throttle decimal (0,1) 0.01
+dynamic_brake decimal (0,1) 0.01
+train_brake decimal (0,1) 0.01
+reverser decimal (-1,1) 0.01
+horn discrete {0,1}
+bell discrete {0,1}
+headlight discrete any
+asfa_baliza discrete {L1,L2,L3,L4,L5,L6,L7,L8,L9,L10,L11,FP}
