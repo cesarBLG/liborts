@@ -152,9 +152,8 @@ Server::Server()
     cout<<"Escriba numero de puerto: ";
     cin>>port;
     AddClient(new SerialClient(port, 115200, poller));
-#else
-    SerialManager serial;
 #endif
+    SerialManager serial;
     bool err = false;
     while (go) {
         //auto t1 = chrono::system_clock::now();

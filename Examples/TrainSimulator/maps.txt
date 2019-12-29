@@ -1,0 +1,4 @@
+throttle VirtualThrottle set autoscale 0 1
+dynamic_brake DynamicBrake set autoscale 0 1
+speed SpeedometerKPH get noscale
+reverser Reverser set autoscale -1 1
