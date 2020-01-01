@@ -175,7 +175,7 @@ int main()
     }
     threadwait *poller = new threadwait();
     poller->add({EXTERNAL, 1, new tswait(1)});
-    tcp_client = new TCPclient("127.0.0.1", 5090, poller);
+    tcp_client = TCPclient::connect_to_server(poller);
     for(int i=0; i<controllers.size(); i++) {
         for(int j=0; j<cmap.size(); j++) {
             Controller &c = controllers[i];

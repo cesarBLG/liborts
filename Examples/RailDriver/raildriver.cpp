@@ -280,7 +280,7 @@ int main()
     }
     poller->add({EXTERNAL, rd, new rdwait(rd)});
 #endif
-    s_client = new TCPclient("127.0.0.1", 5090, poller);
+    s_client = TCPclient::connect_to_server(poller);
     s_client->WriteLine("register(speed)");
     while(s_client->connected) {
         int nfds = poller->poll(100);

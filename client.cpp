@@ -112,6 +112,29 @@ namespace ORserver
         }
 #endif
     }
+    TCPclient* TCPclient::connect_to_server(evwait *p)
+    {
+        int sock = socket(AF_INET,SOCK_DGRAM,0);
+        int br = 1;
+        if(setsockopt(sock,SOL_SOCKET,SO_BROADCAST,&br,sizeof(br))==-1) {
+            perror("setsockopt");
+            return nullptr;
+        }
+        struct sockaddr_in addr;
+        addr.sin_family = AF_INET;
+        addr.sin_port = htons(5091);
+        addr.sin_addr.s_addr = INADDR_ANY;
+        if(bind(sock,(struct sockaddr*)&(addr), sizeof(struct sockaddr_in))==-1) {
+            perror("bind");
+            return nullptr;
+        }
+        char buff[20];
+        struct sockaddr_in from;
+        socklen_t size = sizeof(struct sockaddr_in);
+        recvfrom(sock,buff,20,0,(struct sockaddr*)&from,&size);
+        string ip = inet_ntoa(from.sin_addr);
+        return new TCPclient(ip, 5090, p);
+    }
 #ifndef _WIN32
     SerialClient::SerialClient(string port, int BaudRate, evwait *p) : POSIXclient(p)
     {

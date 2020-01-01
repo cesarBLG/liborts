@@ -12,6 +12,7 @@
 #include <vector>
 #include <set>
 #include <string>
+#include <chrono>
 
 using namespace std;
 namespace ORserver
@@ -36,18 +37,26 @@ void quit(int sig)
 }
 void server_broadcast()
 {
-    /*int sock = socket(AF_INET, SOCK_DGRAM, 0);
+    int sock = socket(AF_INET, SOCK_DGRAM, 0);
+#ifdef _WIN32
+    char br = '1';
+#else
     int br = 1;
+#endif
     if(setsockopt(sock, SOL_SOCKET, SO_BROADCAST, &br, sizeof(br))==-1)
     {
         perror("UDP server");
+#ifdef _WIN32
+        closesocket(sock);
+#else
         close(sock);
+#endif
         return;
     }
     struct sockaddr_in addr;
     addr.sin_family = AF_INET;
     addr.sin_port = htons(5091);
-    addr.sin_addr.s_addr = INADDR_BROADCAST;
+    addr.sin_addr.s_addr = INADDR_ANY;
     
     char msg[] = "Train Simulator Socket";
     while(go)
@@ -56,9 +65,13 @@ void server_broadcast()
         {
             perror("sendto");
         }
-        sleep(1);
+        std::this_thread::sleep_for(std::chrono::seconds(1));
     }
-    close(sock);*/
+#ifdef _WIN32
+    closesocket(sock);
+#else
+    close(sock);
+#endif
 }
 class SerialManager
 {
@@ -114,7 +127,7 @@ int main()
     if(pid == 0) {
         //int fd = open("raildriver.log", O_WRONLY | O_CREAT);
         //dup2(fd, 1);
-        return execl("./raildriver", "raildriver", (char *)nullptr);
+        return execl("raildriver", "raildriver", (char *)nullptr);
     }
 #endif
     Server *s = new Server();

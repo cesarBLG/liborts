@@ -1,0 +1,14 @@
+[Unit]
+Description=Train Simulator interconnection server
+After=network.target
+
+[Service]
+ExecStart=or_server
+ExecReload=/bin/kill -HUP $MAINPID
+KillMode=process
+Restart=always
+User=%i
+
+[Install]
+WantedBy=multi-user.target
+ 

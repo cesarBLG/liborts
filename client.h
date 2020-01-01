@@ -40,6 +40,7 @@ namespace ORserver
         TCPclient(int fd, evwait *p) : POSIXclient(fd, p) {start();}
         TCPclient(std::string ip, int port, evwait *p);
         ~TCPclient();
+        static TCPclient* connect_to_server(evwait *p);
     };
 #ifndef _WIN32
     class SerialClient : public POSIXclient
