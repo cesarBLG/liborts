@@ -114,9 +114,14 @@ namespace ORserver
     }
     TCPclient* TCPclient::connect_to_server(evwait *p)
     {
-        int sock = socket(AF_INET,SOCK_DGRAM,0);
+        /*int sock = socket(AF_INET,SOCK_DGRAM,0);
+#ifdef _WIN32
+        bool br = true;
+        if(setsockopt(sock,SOL_SOCKET,SO_BROADCAST,(char *)&br,sizeof(br))==-1) {
+#else
         int br = 1;
         if(setsockopt(sock,SOL_SOCKET,SO_BROADCAST,&br,sizeof(br))==-1) {
+#endif
             perror("setsockopt");
             return nullptr;
         }
@@ -130,10 +135,25 @@ namespace ORserver
         }
         char buff[20];
         struct sockaddr_in from;
+#ifdef _WIN32
+        int size = sizeof(struct sockaddr_in);
+#else
         socklen_t size = sizeof(struct sockaddr_in);
-        recvfrom(sock,buff,20,0,(struct sockaddr*)&from,&size);
-        string ip = inet_ntoa(from.sin_addr);
-        return new TCPclient(ip, 5090, p);
+#endif
+        
+        struct timeval tv;
+        tv.tv_sec = 1;
+        tv.tv_usec = 0;
+        fd_set fds;
+        FD_ZERO(&fds) ;
+        FD_SET(sock, &fds);
+        if (select(1, &fds, nullptr, nullptr, &tv) == 1) {
+            if (recvfrom(sock,buff,20,0,(struct sockaddr*)&from,&size) != -1) {
+                string ip = inet_ntoa(from.sin_addr);
+                return new TCPclient(ip, 5090, p);
+            }
+        }*/
+        return new TCPclient("127.0.0.1", 5090, p);
     }
 #ifndef _WIN32
     SerialClient::SerialClient(string port, int BaudRate, evwait *p) : POSIXclient(p)

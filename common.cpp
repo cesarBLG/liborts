@@ -1,4 +1,5 @@
 #include "common.h"
+#include "modules.h"
 #include <cmath>
 #include <cstring>
 using namespace std;
@@ -7,26 +8,29 @@ void ParseLine(client *c, string line, function<Parameter*(string)> GetParameter
 {
     string fun;
     string parameter;
-    if(ParseParenthesis(line, fun, parameter)) {
-        if(fun=="get"||fun=="register"||fun=="unregister") {
+    if (ParseParenthesis(line, fun, parameter)) {
+        if (fun=="get"||fun=="register"||fun=="unregister") {
             Parameter *p = GetParameter(parameter);
-            if(p==nullptr) return;
-            if(fun=="unregister") {
+            if (p==nullptr) return;
+            if (fun=="unregister") {
                 unregister(c, p);
-            } else if(fun=="get") {
+            } else if (fun=="get") {
                 if(p->GetValue==nullptr) return;
                 string val = p->GetValue();
                 if (val!="") 
                     c->WriteLine(parameter + "=" + val);
             } else {
                 p->add_register(c);
-                if(p->GetValue!=nullptr) {
+                if (p->GetValue!=nullptr) {
                     string val = p->GetValue();
                     if (val!="") 
                         c->WriteLine(parameter + "=" + val);
                 }
                 
             }
+        } else if (fun=="subscribe_topic") {
+        } else if (fun=="request_module") {
+            ts_module::by_name(parameter);
         }
     }
     else {

@@ -56,14 +56,14 @@ void server_broadcast()
     struct sockaddr_in addr;
     addr.sin_family = AF_INET;
     addr.sin_port = htons(5091);
-    addr.sin_addr.s_addr = INADDR_ANY;
+    addr.sin_addr.s_addr = INADDR_BROADCAST;
     
     char msg[] = "Train Simulator Socket";
     while(go)
     {
         if(sendto(sock, msg, sizeof(msg), 0,(struct sockaddr *)&(addr), sizeof(struct sockaddr_in))==-1)
         {
-            perror("sendto");
+            //perror("sendto");
         }
         std::this_thread::sleep_for(std::chrono::seconds(1));
     }
@@ -81,9 +81,9 @@ class SerialManager
     SerialManager()
     {
 #ifdef WIN32
-        connectable.insert("COM5");
+        /*connectable.insert("COM5");
         connectable.insert("COM6");
-        connectable.insert("COM7");
+        connectable.insert("COM7");*/
 #else
         connectable.insert("/dev/ttyACM0");
         connectable.insert("/dev/ttyACM1");
@@ -120,6 +120,8 @@ class SerialManager
 };
 int main()
 {
+    cout<<"Servidor de comunicación entre periféricos y simulador."<<endl;
+    cout<<"Por favor, no cierre esta ventana mientras quiera utilizar el simulador"<<endl;
 #ifndef _WIN32
     signal(SIGINT, quit);
     signal(SIGPIPE, SIG_IGN);
@@ -161,10 +163,10 @@ Server::Server()
     poller->add({FD, server});
     thread broadcast(server_broadcast);
 #ifdef WIN32
-    string port;
+    /*string port;
     cout<<"Escriba numero de puerto: ";
     cin>>port;
-    AddClient(new SerialClient(port, 115200, poller));
+    AddClient(new SerialClient(port, 115200, poller));*/
 #endif
     SerialManager serial;
     bool err = false;

@@ -68,8 +68,10 @@ namespace ORserver
         {
             std::set<client*> outdated;
             for(auto it = registers.begin(); it != registers.end(); ++it) {
-                if(it->second != value)
+                if(it->second != value) {
                     outdated.insert(it->first);
+                    it->second = value;
+                }
             }
             return outdated;
         }

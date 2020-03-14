@@ -1,5 +1,5 @@
 #ifdef _WIN32
-#include "PieHid32.h"
+#include "PieHid64.h"
 #else
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -88,6 +88,12 @@ string getFunction(string param, string val)
 float speed=0;
 POSIXclient *s_client;
 set<Parameter*> parameters;
+int serie=446;
+bool mandoCombinadoPrefijada=false;
+bool mandoATOengine=false;
+int maxSpeed=100;
+int mandocombinado=1;
+
 Parameter *GetParameter(string name)
 {
     for(auto it=parameters.begin(); it!=parameters.end(); ++it) {
@@ -95,15 +101,31 @@ Parameter *GetParameter(string name)
     }
     Parameter *p = new Parameter(name);
     if(name=="direction") {
-        p->GetValue = [] {return to_string(State.DirectionPercent > 90 ? 1 : (State.DirectionPercent < -90 ? -1 : 0));};
+        p->GetValue = [] {return State.DirectionPercent > 90 ? "1" : (State.DirectionPercent < -90 ? "-1" : "0");};
     } else if(name=="throttle") {
-        p->GetValue = [] {return State.Modocond==2 ? "0" : to_string(clamped(State.ThrottlePercent));};
+        p->GetValue = [] {
+            return (State.Modocond==2 && mandoCombinadoPrefijada) ? "0" : to_string(clamped(State.ThrottlePercent));
+        };
     } else if(name=="cruise_speed") {
-        p->GetValue = [] {return State.Modocond==2 ? to_string(clamped(State.ThrottlePercent)*120) : "0";};
+        p->GetValue = [] {
+            if (mandoCombinadoPrefijada)
+                return State.Modocond==2 ? to_string(clamped(State.ThrottlePercent)*maxSpeed) : "0";
+            if (mandoATOengine)
+                return to_string(clamped(State.EngineBrakePercent)*maxSpeed);
+            return string("0");
+        };
+    } else if(name=="dynamic_brake") {
+        p->GetValue = [] {
+            if (mandocombinado == 1)
+                return to_string(clamped(State.DynamicBrakePercent));
+            return string("0");
+        };
     } else if(name=="train_brake") {
-        p->GetValue = [] {return to_string(clamped(State.DynamicBrakePercent));};
-    /*} else if(name=="train_brake") {
-        p->GetValue = [] {return to_string(clamped(State.TrainBrakePercent));};*/
+        p->GetValue = [] {
+            if (mandocombinado==2)
+                return to_string(clamped(State.DynamicBrakePercent));
+            return to_string(clamped(State.TrainBrakePercent));
+        };
     } else if(name=="horn") {
         p->GetValue = [] {return to_string(State.Horn);};
     } else if(name=="bell") {
@@ -183,7 +205,7 @@ class rdwait : public evwait
     {
         data = error = false;
         SetDataCallback(rdhandle, datacallback);
-        SetErrorCallback(rdhandle, errorcallback);
+        //SetErrorCallback(rdhandle, errorcallback);
     }
     //~rdwait();
     void add(event ev) override
@@ -232,11 +254,16 @@ unsigned long __stdcall errorcallback(unsigned long deviceID, unsigned long erro
 }
 int read(long handle, unsigned char *buff, int count)
 {
-    ReadData(handle, buff);
+    unsigned char b[15];
+    int res = ReadLast(handle, b);
+    memcpy(buff,b+1,14);
+    if (res==0)
+        return 14;
+    return -1;
 }
 int write(long handle, unsigned char *buff, int count)
 {
-    WriteData(handle, buff);
+    return WriteData(handle, buff);
 }
 #endif
 void quit(int sig)
@@ -246,6 +273,10 @@ void quit(int sig)
 int prevc=-1;
 int main()
 {
+#ifdef _WIN32
+    WSADATA wsa;
+    WSAStartup(MAKEWORD(2,2), &wsa);
+#endif
     threadwait *poller = new threadwait();
 #ifdef __linux__
     signal(SIGINT, quit);
@@ -268,14 +299,12 @@ int main()
 		int version=info[i].Version;
 		int writelen=GetWriteLength(info[i].Handle);
         long hnd;
-		if ((hidusagepage == 0xC && writelen==36)) {
-            hnd = info[i].Handle; //handle required for piehid32.dll calls
-			if(SetupInterfaceEx(hnd)!=0) {
-                return -1;
-            } else if(pid == 0xD2) {
-                rd = hnd;
-                break;
-            }
+		hnd = info[i].Handle; //handle required for piehid32.dll calls
+        if(SetupInterfaceEx(hnd)!=0) {
+            return -1;
+        } else if(pid == 0xD2) {
+            rd = hnd;
+            break;
         }
     }
     poller->add({EXTERNAL, rd, new rdwait(rd)});
@@ -314,8 +343,8 @@ int main()
         for_each(parameters.begin(), parameters.end(), [](Parameter* p){p->Send();});
         
         int c;
-        if(State.Wipers == 2)
-            c = (int)(clamped(State.ThrottlePercent)*120);
+        if(State.Modocond == 2)
+            c = (int)(clamped(mandoATOengine ? State.EngineBrakePercent : (mandocombinado ? State.ThrottlePercent : 0))*maxSpeed);
         else
             c = (int)speed;
         if (c!=prevc) {
@@ -324,19 +353,19 @@ int main()
             prevc = c;
         }
     }
+    delete s_client;
     delete poller;
 #ifndef _WIN32
     close(rd);
 #endif
-    delete s_client;
     return 0;
 }
 float Percentage(float x, float x0, float x100)
 {
     float p = 100 * (x - x0) / (x100 - x0);
-    if (p < 5)
+    if (p < 3)
         return 0;
-    if (p > 95)
+    if (p > 97)
         return 100;
     return p;
 }
@@ -345,9 +374,9 @@ float Percentage(float x, float xminus100, float x0, float xplus100)
     float p = 100 * (x - x0) / (xplus100 - x0);
     if (p < 0)
         p = 100 * (x - x0) / (x0 - xminus100);
-    if (p < -95)
+    if (p < -97)
         return -100;
-    if (p > 95)
+    if (p > 97)
         return 100;
     return p;
 }
