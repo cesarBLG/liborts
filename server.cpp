@@ -11,22 +11,110 @@
 #include "common.h"
 #include <vector>
 #include <set>
+#include <map>
 #include <string>
 #include <chrono>
 
 using namespace std;
 namespace ORserver
 {
-    class Server
+    class Register
     {
-        set<Parameter*> parameters;
+        public:
+        const string name;
+        vector<string> topic;
+        mutable set<client*> clients; //TODO: convert to map with update delta for each client
+        Register(string name) : name(name)
+        {
+            topic = SplitTopic(name);
+        }
+        bool operator <(const Register &r) const
+        {
+            return name<r.name;
+        }
+    };
+    class Server : public ParameterManager
+    {
         set<client*> clients;
+        map<Register, set<client*>> registers;
         public:
         Server();
-        Parameter *GetParameter(string parameter);
+        Parameter *GetParameter(string parameter) override;
         void unregister(client *c, Parameter *p);
         void AddClient(client *c);
         void RemoveClient(client *c);
+        void AddRegisterPetition(string petition, client *cl)
+        {
+            Register r(petition);
+            auto it = registers.find(r);
+            if (it == registers.end())
+                it = registers.insert(std::pair<Register,set<client*>>(r,set<client*>())).first;
+            
+            it->first.clients.insert(cl);
+            
+            for (client *c : clients) {
+                if (it->second.find(c)==it->second.end()) {
+                    c->WriteLine("register(" + petition + ")");
+                    it->second.insert(c);
+                }
+            }
+            for (Parameter *p : parent_topic.GetAllMatches(r.topic)) {
+                p->add_register(cl);
+                p->Send();
+            }
+        }
+        void UpdateEmptyRegisters()
+        {
+            set<Register> bad;
+            for (auto it = registers.begin(); it!=registers.end(); ++it) {
+                if (it->first.clients.empty())
+                    bad.insert(it->first);
+            }
+            for (Register r : bad) {
+                auto it = registers.find(r);
+                if (it == registers.end())
+                    continue;
+                bool none=true;
+                for (Parameter *p : parent_topic.GetAllMatches(r.topic)) {
+                    if (!p->clients.empty()) {
+                        none = false;
+                    } else {
+                        RemoveParameter(p);
+                        for (client *c : it->second) {
+                            c->WriteLine("unregister(" + p->name + ")");
+                        }
+                        delete p;
+                    }
+                }
+                if (none) for (client *c : it->second)
+                    c->WriteLine("unregister(" + r.name + ")");
+                registers.erase(it);
+            }
+        }
+        void RemoveRegisterPetition(string petition, client *cl)
+        {
+            auto it = registers.find(Register(petition));
+            if (it != registers.end()) {
+                it->first.clients.erase(cl);
+                for (Parameter *p : parent_topic.GetAllMatches(it->first.topic))
+                    p->unregister(cl);
+            }
+            UpdateEmptyRegisters();
+        }
+        void UpdatePetitions(Parameter *p)
+        {
+            bool found=false;
+            for (auto it = registers.begin(); it!=registers.end(); ++it) {
+                set<Parameter*> params = parent_topic.GetAllMatches(it->first.topic);
+                if (params.find(p) != params.end()) {
+                    found = true;
+                    for (client *c : it->first.clients)
+                        p->add_register(c);
+                }
+            }
+            p->Send();
+        }
+        void function_call(client *c, string fun, string param) override;
     };
 }
 using namespace ORserver;
@@ -36,42 +124,53 @@ void quit(int sig)
     go = false;
 }
 void server_broadcast()
-{
-    int sock = socket(AF_INET, SOCK_DGRAM, 0);
-#ifdef _WIN32
-    char br = '1';
-#else
-    int br = 1;
-#endif
-    if(setsockopt(sock, SOL_SOCKET, SO_BROADCAST, &br, sizeof(br))==-1)
-    {
-        perror("UDP server");
-#ifdef _WIN32
-        closesocket(sock);
-#else
-        close(sock);
-#endif
-        return;
-    }
-    struct sockaddr_in addr;
-    addr.sin_family = AF_INET;
-    addr.sin_port = htons(5091);
-    addr.sin_addr.s_addr = INADDR_BROADCAST;
-    
+{    
     char msg[] = "Train Simulator Socket";
     while(go)
     {
-        if(sendto(sock, msg, sizeof(msg), 0,(struct sockaddr *)&(addr), sizeof(struct sockaddr_in))==-1)
+        int sock = socket(AF_INET, SOCK_DGRAM, 0);
+        if(sock==-1)
         {
-            //perror("sendto");
+            perror("socket");
+            std::this_thread::sleep_for(std::chrono::seconds(1));
+            continue;
         }
-        std::this_thread::sleep_for(std::chrono::seconds(1));
-    }
 #ifdef _WIN32
-    closesocket(sock);
+        char br = '1';
 #else
-    close(sock);
+        int br = 1;
 #endif
+        if(setsockopt(sock, SOL_SOCKET, SO_BROADCAST, &br, sizeof(br))==-1)
+        {
+            perror("UDP server");
+#ifdef _WIN32
+            closesocket(sock);
+#else
+            close(sock);
+#endif
+            std::this_thread::sleep_for(std::chrono::seconds(1));
+            continue;
+        }
+        struct sockaddr_in addr;
+        addr.sin_family = AF_INET;
+        addr.sin_port = htons(5091);
+#ifdef RELEASE
+        addr.sin_addr.s_addr = inet_addr("127.0.0.1");
+#else
+        addr.sin_addr.s_addr = INADDR_BROADCAST;
+#endif
+        while(sendto(sock, msg, sizeof(msg), 0,(struct sockaddr *)&(addr), sizeof(struct sockaddr_in))==-1)
+        {
+            std::this_thread::sleep_for(std::chrono::milliseconds(300));
+        }
+#ifdef _WIN32
+        closesocket(sock);
+#else
+        shutdown(sock, SHUT_RDWR);
+        close(sock);
+#endif
+        std::this_thread::sleep_for(std::chrono::milliseconds(300));
+    }
 }
 class SerialManager
 {
@@ -80,10 +179,14 @@ class SerialManager
     public:
     SerialManager()
     {
+#ifndef RELEASE
 #ifdef WIN32
-        /*connectable.insert("COM5");
+        connectable.insert("COM5");
         connectable.insert("COM6");
-        connectable.insert("COM7");*/
+        connectable.insert("COM7");
+        connectable.insert("COM8");
+        connectable.insert("COM9");
+        connectable.insert("COM10");
 #else
         connectable.insert("/dev/ttyACM0");
         connectable.insert("/dev/ttyACM1");
@@ -93,6 +196,7 @@ class SerialManager
         connectable.insert("/dev/ttyUSB1");
         connectable.insert("/dev/ttyUSB2");
         connectable.insert("/dev/ttyUSB3");
+#endif
 #endif
     }
     set<string> available()
@@ -104,7 +208,7 @@ class SerialManager
             char buff[500];
             exists = QueryDosDevice(it->c_str(), buff, 500) != 0;
 #else
-            exists = access(it->c_str(), 0) == 0; 
+            exists = access(it->c_str(), 0) == 0;
 #endif
             if(exists)
             {
@@ -146,28 +250,37 @@ Server::Server()
     struct sockaddr_in serv;
     serv.sin_family = AF_INET;
     serv.sin_port = htons(5090);
+#ifdef RELEASE
+    serv.sin_addr.s_addr = INADDR_LOOPBACK;
+#else
     serv.sin_addr.s_addr = INADDR_ANY;
+#endif
     if (server == -1) {
         perror("socket");
+        return;
+    }
+    int ra=1;
+    if(setsockopt(server, SOL_SOCKET, SO_REUSEADDR, &ra, sizeof(ra))==-1) {
+        perror("setsockopt");
         return;
     }
     if (bind(server, (struct sockaddr *)&(serv), sizeof(serv)) == -1) {
         perror("bind");
         return;
     }
-    if (listen(server, 10) == -1) {
+    if (listen(server, SOMAXCONN) == -1) {
         perror("listen");
         return;
     }
     evwait *poller = new threadwait();
     poller->add({FD, server});
     thread broadcast(server_broadcast);
-#ifdef WIN32
-    /*string port;
+/*#ifdef WIN32
+    string port;
     cout<<"Escriba numero de puerto: ";
     cin>>port;
-    AddClient(new SerialClient(port, 115200, poller));*/
-#endif
+    AddClient(new SerialClient(port, 115200, poller));
+#endif*/
     SerialManager serial;
     bool err = false;
     while (go) {
@@ -215,7 +328,7 @@ Server::Server()
             (*it)->handle();
             string s = (*it)->ReadLine();
             while (s != "") {
-                ParseLine(*it, s, [this](string val) {return GetParameter(val);},  [this](client *c, Parameter *p) {unregister(c, p);});
+                ParseLine(*it, s);
                 s = (*it)->ReadLine();
             }
             if(!(*it)->connected) {
@@ -242,51 +355,68 @@ Server::Server()
 }
 Parameter* Server::GetParameter(string parameter)
 {
-    Parameter *p=nullptr;
-    for (auto it=parameters.begin(); it!=parameters.end(); ++it) {
-        if (*(*it)==parameter) {
-            p = *it;
-            break;
-        }
-    }
+    Parameter *p = ParameterManager::GetParameter(parameter);
     if (p==nullptr) {
         p = new ExternalParameter(parameter);
-        parameters.insert(p);
-        for (auto it=clients.begin(); it!=clients.end(); ++it) {
-            (*it)->WriteLine("register(" + p->name + ")");
-        }
-        p->registerPetitionSent.insert(clients.begin(), clients.end());
+        AddParameter(p);
+        UpdatePetitions(p);
     }
     return p;
-}
-void Server::unregister(client *c, Parameter *p)
-{
-    p->unregister(c);
-    if (p->clients.size()==0) {
-        for (auto it=p->registerPetitionSent.begin(); it!=p->registerPetitionSent.end(); ++it) {
-            (*it)->WriteLine("unregister("+p->name+")");
-        }
-        parameters.erase(p);
-        delete p;
-    }
 }
 void Server::AddClient(client *c)
 {
     if(!c->connected) c->start();
-    for(auto it=parameters.begin(); it!=parameters.end(); ++it) {
-        c->WriteLine("register(" + (*it)->name + ")");
-        (*it)->registerPetitionSent.insert(c);
+    for(auto it=registers.begin(); it!=registers.end(); ++it) {
+        c->WriteLine("register(" + it->first.name + ")");
+        it->second.insert(c);
     }
     clients.insert(c);
 }
 void Server::RemoveClient(client *c)
 {
     clients.erase(c);
-    for (auto it=parameters.begin(); it!=parameters.end();) {
-        Parameter *p = *it;
-        ++it;
-        p->registerPetitionSent.erase(c);
-        unregister(c, p);
+    for(auto it=registers.begin(); it!=registers.end(); ++it) {
+        it->first.clients.erase(c);
+        it->second.erase(c);
+        for (Parameter *p : parent_topic.GetAllMatches(it->first.topic))
+            p->unregister(c);
+    }
+    UpdateEmptyRegisters();
+    set<Parameter*> orphans;
+    for(auto it=parameters.begin(); it!=parameters.end(); ++it) {
+        (*it)->providers.erase(c);
+        if ((*it)->providers.empty())
+            orphans.insert(*it);
+    }
+    for (auto it=orphans.begin(); it!=orphans.end(); ++it) {
+        RemoveParameter(*it);
+        delete *it;
     }
     delete c;
+}
+void Server::function_call(client *c, string fun, string param)
+{
+    if (fun == "register") {
+        AddRegisterPetition(param, c);
+    } else if (fun == "unregister") {
+        RemoveRegisterPetition(param, c);
+    } else if (fun == "noretain") {
+        string::size_type eq = param.find_first_of('=');
+        if (eq == string::npos)
+            return;
+        string parameter = param.substr(0, eq);
+        string value = param.substr(eq + 1);
+        Parameter *p = new ExternalParameter(parameter);
+        Topic temp(nullptr,"");
+        temp.insert(p);
+        for (auto it = registers.begin(); it!=registers.end(); ++it) {
+            set<Parameter*> params = temp.GetAllMatches(it->first.topic);
+            if (params.find(p) != params.end()) {
+                for (client *c : it->first.clients)
+                    c->WriteLine(parameter+"="+value);
+            }
+        }
+        temp.erase(p);
+        delete p;
+    }
 }

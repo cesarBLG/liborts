@@ -1,37 +1,112 @@
 #include "common.h"
-#include "modules.h"
 #include <cmath>
 #include <cstring>
 using namespace std;
 namespace ORserver{
-void ParseLine(client *c, string line, function<Parameter*(string)> GetParameter, function<void(client*, Parameter*)> unregister)
+    
+void Topic::insert(Parameter *p, int depth)
+{
+    if (p->split_name.size() == depth + 1) {
+        parameters.insert(p);
+    } else {
+        for (Topic *t : subtopics) {
+            if (t->topic_name == p->split_name[depth]) {
+                t->insert(p, depth+1);
+                return;
+            }
+        }
+        Topic *t = new Topic(this, p->split_name[depth]);
+        t->insert(p, depth+1);
+        subtopics.insert(t);
+    }
+}
+void Topic::erase(Parameter *p, int depth)
+{
+    if (p->split_name.size() == depth + 1) {
+        parameters.erase(p);
+    } else {
+        for (Topic *t : subtopics) {
+            if (t->topic_name == p->split_name[depth]) {
+                t->erase(p, depth+1);
+                if (t->parameters.empty() && t->subtopics.empty()) {
+                    subtopics.erase(t);
+                    delete t;
+                }
+                return;
+            }
+        }
+    }
+}
+std::set<Parameter*> Topic::GetAllMatches(std::vector<std::string> match)
+{
+    std::set<Parameter*> params;
+    
+    if (match[0] == "*") {
+        params = parameters;
+        for (Topic *t : subtopics) {
+            std::set<Parameter*> more = t->GetAllMatches(match);
+            params.insert(more.begin(), more.end());
+        }
+        return params;
+    }
+    
+    if (match.size() == 1) {
+        for (Parameter *p : parameters) {
+            if (p->split_name.back() == match.back())
+                params.insert(p);
+        }
+    } else {
+        for (Topic *t : subtopics) {
+            if (match[0] == t->topic_name || match[0] == "+") {
+                vector<string> newmatch = match;
+                newmatch.erase(newmatch.begin());
+                std::set<Parameter*> more = t->GetAllMatches(newmatch);
+                params.insert(more.begin(), more.end());
+            }
+        }
+    }
+    return params;
+}
+Parameter *Topic::GetMatch(std::vector<std::string> match)
+{
+    if (match.size() == 1) {
+        for (Parameter *p : parameters) {
+            if (p->split_name.back() == match.back())
+                return p;
+        }
+    } else {
+        for (Topic *t : subtopics) {
+            if (match[0] == t->topic_name) {
+                match.erase(match.begin());
+                return t->GetMatch(match);
+            }
+        }
+    }
+    return nullptr;
+}
+
+void ParameterManager::function_call(client *c, string fun, string param)
+{
+    if (fun == "register") {
+        for (Parameter *p : parent_topic.GetAllMatches(SplitTopic(param))) {
+            p->add_register(c);
+        }
+    } else if (fun == "unregister") {
+        for (Parameter *p : parent_topic.GetAllMatches(SplitTopic(param))) {
+            p->unregister(c);
+        }
+    }
+}
+Parameter *ParameterManager::GetParameter(string name)
+{
+    return parent_topic.GetMatch(SplitTopic(name));
+}
+void ParameterManager::ParseLine(client *c, string line)
 {
     string fun;
-    string parameter;
-    if (ParseParenthesis(line, fun, parameter)) {
-        if (fun=="get"||fun=="register"||fun=="unregister") {
-            Parameter *p = GetParameter(parameter);
-            if (p==nullptr) return;
-            if (fun=="unregister") {
-                unregister(c, p);
-            } else if (fun=="get") {
-                if(p->GetValue==nullptr) return;
-                string val = p->GetValue();
-                if (val!="") 
-                    c->WriteLine(parameter + "=" + val);
-            } else {
-                p->add_register(c);
-                if (p->GetValue!=nullptr) {
-                    string val = p->GetValue();
-                    if (val!="") 
-                        c->WriteLine(parameter + "=" + val);
-                }
-                
-            }
-        } else if (fun=="subscribe_topic") {
-        } else if (fun=="request_module") {
-            ts_module::by_name(parameter);
-        }
+    string param;
+    if (ParseParenthesis(line, fun, param)) {
+        function_call(c, fun, param);
     }
     else {
         string::size_type eq = line.find_first_of('=');
@@ -42,8 +117,10 @@ void ParseLine(client *c, string line, function<Parameter*(string)> GetParameter
         if (parameter=="connected")
             return;
         Parameter *p = GetParameter(parameter);
-        if(p->SetValue!=nullptr)
+        if(p!=nullptr && p->SetValue!=nullptr) {
             p->SetValue(value);
+            p->providers.insert(c);
+        }
     }
 }
 bool ParseParenthesis(string line, string &before, string &inside)
@@ -56,11 +133,22 @@ bool ParseParenthesis(string line, string &before, string &inside)
     inside = line.substr(par1 + 1, par2 - par1 - 1);
     return true;  
 }
+std::vector<std::string> SplitTopic(std::string s)
+{
+    std::vector<std::string> vec;
+    int index=-2;
+    do {
+        s = s.substr(index+2);
+        index = s.find_first_of("::");
+        vec.push_back(s.substr(0,index));
+    } while(index != std::string::npos);
+    return vec;
+}
 ParameterData *ParameterData::construct(string name)
 {
-    if (name == "speed" || name == "cruise_speed" || name == "distance")
+    if (name == "speed" || name == "cruise_speed" || name == "distance" || name == "simulator_time")
         return new NumericData(0.1f);
-    else if (name == "throttle" || name == "dynamic_brake" || name == "train_brake")
+    else if (name == "controller::throttle" || name == "controller::brakes::dynamic" || name == "controller::brakes::train")
         return new NumericData(0.01f);
     else
         return new DiscreteData();
@@ -88,7 +176,7 @@ ExternalParameter::ExternalParameter(string name) : Parameter(name)
 }
 }
 using namespace ORserver;
-void ParseLine(void *hclient, const char* line, void *(*getparameter)(const char *), void (*unregister)(void *, void *))
+/*void ParseLine(void *hclient, const char* line, void *(*getparameter)(const char *), void (*unregister)(void *, void *))
 {
     ORserver::ParseLine((client*)hclient, 
         line,
@@ -127,4 +215,4 @@ void parameter_getvalue(void *parameter, char *data, int size)
 void parameter_setvalue(void *parameter, const char *data)
 {
     ((Parameter*)parameter)->SetValue(data);
-}
+}*/

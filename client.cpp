@@ -12,6 +12,7 @@
 #include <sys/ioctl.h>
 #include <unistd.h>
 #include <arpa/inet.h>
+#include <errno.h>
 #endif
 using namespace std;
 #ifdef WIN32
@@ -43,7 +44,7 @@ namespace ORserver
     }
     void POSIXclient::WriteLine(string line)
     {
-        line = line+'\n';
+        line = line+"\r\n";
         int res = write(fd, line.c_str(), line.length());
         if(res==-1) {
             perror("write");
@@ -58,8 +59,8 @@ namespace ORserver
                 connected = false;
                 return;
             }
-            char data[50];
-            int c = read(fd, data, 50);
+            char data[1024];
+            int c = read(fd, data, 1024);
             if (c == 0 || c== -1) {
                 if (c == -1) {
                     if (errno==EAGAIN)
@@ -72,6 +73,8 @@ namespace ORserver
                 data[c] = 0;
                 buff += data;
             }
+            if (c >= 2047)
+                handle();
         }
     }
     POSIXclient::~POSIXclient()
@@ -94,7 +97,10 @@ namespace ORserver
         struct sockaddr_in addr;
         addr.sin_family = AF_INET;
         addr.sin_port = htons(5090);
-        addr.sin_addr.s_addr = inet_addr(ip.c_str());
+        /*if (ip == "127.0.0.1" || ip == "localhost")
+            addr.sin_addr.s_addr = INADDR_LOOPBACK;
+        else
+            */addr.sin_addr.s_addr = inet_addr(ip.c_str());
         if (connect(fd, (struct sockaddr *)&addr, sizeof(addr)) == -1) {
             perror("tcp connect");
             return;
@@ -114,24 +120,37 @@ namespace ORserver
     }
     TCPclient* TCPclient::connect_to_server(evwait *p)
     {
-        /*int sock = socket(AF_INET,SOCK_DGRAM,0);
+#ifdef RELEASE
+        return new TCPclient("127.0.0.1", 5090, p);
+#endif
+        int sock = socket(AF_INET,SOCK_DGRAM,0);
 #ifdef _WIN32
-        bool br = true;
-        if(setsockopt(sock,SOL_SOCKET,SO_BROADCAST,(char *)&br,sizeof(br))==-1) {
+        char br = '1';
 #else
         int br = 1;
-        if(setsockopt(sock,SOL_SOCKET,SO_BROADCAST,&br,sizeof(br))==-1) {
 #endif
+        if(setsockopt(sock, SOL_SOCKET, SO_BROADCAST, &br, sizeof(br))==-1)
+        {
             perror("setsockopt");
-            return nullptr;
+            return new TCPclient("127.0.0.1", 5090, p);
         }
         struct sockaddr_in addr;
         addr.sin_family = AF_INET;
-        addr.sin_port = htons(5091);
+        addr.sin_port = htons(5091);     
         addr.sin_addr.s_addr = INADDR_ANY;
-        if(bind(sock,(struct sockaddr*)&(addr), sizeof(struct sockaddr_in))==-1) {
-            perror("bind");
-            return nullptr;
+        for(int i=0; ; i++)
+        {
+            if(bind(sock,(struct sockaddr*)&(addr), sizeof(struct sockaddr_in))==-1) {
+#ifndef _WIN32
+                if (errno == EADDRINUSE && i<5) {
+                    sleep(1);
+                    continue;
+                }
+#endif
+                perror("bind");
+                return new TCPclient("127.0.0.1", 5090, p);
+            }
+            break;
         }
         char buff[20];
         struct sockaddr_in from;
@@ -147,12 +166,33 @@ namespace ORserver
         fd_set fds;
         FD_ZERO(&fds) ;
         FD_SET(sock, &fds);
-        if (select(1, &fds, nullptr, nullptr, &tv) == 1) {
+        if (select(sock+1, &fds, nullptr, nullptr, &tv) == 1) {
             if (recvfrom(sock,buff,20,0,(struct sockaddr*)&from,&size) != -1) {
                 string ip = inet_ntoa(from.sin_addr);
+#ifdef _WIN32
+                shutdown(sock, SD_BOTH);
+                closesocket(sock);
+#else
+                if (shutdown(sock, SHUT_RDWR) == -1) {
+                    perror("shutdown");
+                }
+                if (close(sock) == -1)
+                    perror("close");
+#endif
                 return new TCPclient(ip, 5090, p);
             }
-        }*/
+        }
+#ifdef _WIN32
+        shutdown(sock, SD_BOTH);
+        closesocket(sock);
+#else
+        if (shutdown(sock, SHUT_RDWR) == -1) {
+            perror("shutdown");
+        }
+        if (close(sock) == -1) {
+            perror("close");
+        }
+#endif
         return new TCPclient("127.0.0.1", 5090, p);
     }
 #ifndef _WIN32
@@ -275,6 +315,7 @@ namespace ORserver
         timeouts.WriteTotalTimeoutMultiplier = 5000;
         timeouts.WriteTotalTimeoutConstant = 5000;
         SetCommTimeouts(hComm, &timeouts);
+        EscapeCommFunction(hComm,SETDTR);
         thread thr([this]{
             this_thread::sleep_for(chrono::seconds(2));
             start();
@@ -284,10 +325,11 @@ namespace ORserver
 #endif
     string client::ReadLine()
     {
-        string::size_type ind = buff.find_first_of('\n');
+        string::size_type ind = buff.find_first_of("\r\n");
         if(ind != string::npos) {
             string line = buff.substr(0, ind);
             buff = buff.substr(ind+1);
+            if (line.size()==0 && buff.size()!=0) return ReadLine();
             return line;
         }
         return "";

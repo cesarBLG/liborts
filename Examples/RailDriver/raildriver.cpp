@@ -87,52 +87,67 @@ string getFunction(string param, string val)
 }
 float speed=0;
 POSIXclient *s_client;
-set<Parameter*> parameters;
 int serie=446;
-bool mandoCombinadoPrefijada=false;
+bool mandoCombinadoPrefijada=true;
 bool mandoATOengine=false;
-int maxSpeed=100;
-int mandocombinado=1;
+int maxSpeed=120;
+int mandocombinado=2;
 
-Parameter *GetParameter(string name)
+ParameterManager manager;
+void SetParameters()
 {
-    for(auto it=parameters.begin(); it!=parameters.end(); ++it) {
-        if(**it==name) return *it;
-    }
-    Parameter *p = new Parameter(name);
-    if(name=="direction") {
-        p->GetValue = [] {return State.DirectionPercent > 90 ? "1" : (State.DirectionPercent < -90 ? "-1" : "0");};
-    } else if(name=="throttle") {
-        p->GetValue = [] {
-            return (State.Modocond==2 && mandoCombinadoPrefijada) ? "0" : to_string(clamped(State.ThrottlePercent));
-        };
-    } else if(name=="cruise_speed") {
-        p->GetValue = [] {
-            if (mandoCombinadoPrefijada)
-                return State.Modocond==2 ? to_string(clamped(State.ThrottlePercent)*maxSpeed) : "0";
-            if (mandoATOengine)
-                return to_string(clamped(State.EngineBrakePercent)*maxSpeed);
-            return string("0");
-        };
-    } else if(name=="dynamic_brake") {
-        p->GetValue = [] {
-            if (mandocombinado == 1)
-                return to_string(clamped(State.DynamicBrakePercent));
-            return string("0");
-        };
-    } else if(name=="train_brake") {
-        p->GetValue = [] {
-            if (mandocombinado==2)
-                return to_string(clamped(State.DynamicBrakePercent));
-            return to_string(clamped(State.TrainBrakePercent));
-        };
-    } else if(name=="horn") {
-        p->GetValue = [] {return to_string(State.Horn);};
-    } else if(name=="bell") {
-        p->GetValue = [] {return to_string(State.Bell);};
-    } else if(name=="headlight") {
-        p->GetValue = [] {return to_string(State.Lights);};
-    } else if(name=="asfa_pulsador_anpar") {
+    Parameter *p = new Parameter("controller::direction");
+    p->GetValue = [] {return State.DirectionPercent > 90 ? "1" : (State.DirectionPercent < -90 ? "-1" : "0");};
+    manager.AddParameter(p);
+        
+    p = new Parameter("controller::throttle");
+    p->GetValue = [] {
+        return (State.Modocond==2 && mandoCombinadoPrefijada) ? "0" : to_string(clamped(State.ThrottlePercent));
+    };
+    manager.AddParameter(p);
+        
+    p = new Parameter("cruise_speed");
+    p->GetValue = [] {
+        if (mandoCombinadoPrefijada)
+            return State.Modocond==2 ? to_string(clamped(State.ThrottlePercent)*maxSpeed) : "0";
+        if (mandoATOengine)
+            return to_string(clamped(State.EngineBrakePercent)*maxSpeed);
+        return string("0");
+    };
+    manager.AddParameter(p);
+        
+    p = new Parameter("controller::brake::dynamic");
+    p->GetValue = [] {
+        if (mandocombinado == 1)
+            return to_string(clamped(State.DynamicBrakePercent));
+        return string("0");
+    };
+    manager.AddParameter(p);
+        
+    p = new Parameter("controller::brake::train");
+    p->GetValue = [] {
+        if (mandocombinado==2)
+            return to_string(clamped(State.DynamicBrakePercent));
+        return to_string(clamped(State.TrainBrakePercent));
+    };
+    manager.AddParameter(p);
+    
+    p = new Parameter("horn");
+    p->GetValue = [] {return to_string(State.Horn);};
+    manager.AddParameter(p);
+    
+    p = new Parameter("bell");
+    p->GetValue = [] {return to_string(State.Bell);};
+    manager.AddParameter(p);
+    
+    p = new Parameter("headlight");
+    p->GetValue = [] {return to_string(State.Lights);};
+    manager.AddParameter(p);
+    
+    p = new Parameter("speed");
+    p->SetValue = [](string val) {speed = stof(val);};
+    manager.AddParameter(p);
+    /*} else if(name=="asfa_pulsador_anpar") {
         p->GetValue = [] {return to_string(State.ASFA.AnPar);};
     } else if(name=="asfa_pulsador_anpre") {
         p->GetValue = [] {return to_string(State.ASFA.AnPre);};
@@ -154,15 +169,13 @@ Parameter *GetParameter(string name)
         p->GetValue = [] {return to_string(State.ASFA.LVI);};
     } else if(name=="asfa_pulsador_pn") {
         p->GetValue = [] {return to_string(State.ASFA.PN);};
-    } else if(name=="speed") {
-        p->SetValue = [](string val) {speed = stof(val);};
     } else {
         delete p;
         return nullptr;
     }
     p->add_register(s_client);
     parameters.insert(p);
-    return p;
+    return p;*/
 }
 void parse_rd(unsigned char *rdata)
 {
@@ -271,8 +284,9 @@ void quit(int sig)
     s_client->connected = false;
 }
 int prevc=-1;
-int main()
+int main(int argc, char** argv)
 {
+    if (argc>1) serie = atoi(argv[1]);
 #ifdef _WIN32
     WSADATA wsa;
     WSAStartup(MAKEWORD(2,2), &wsa);
@@ -309,10 +323,27 @@ int main()
     }
     poller->add({EXTERNAL, rd, new rdwait(rd)});
 #endif
+    
+    if (serie == 446 || serie == 447 || serie == 450 || serie == 451 || (serie > 461 && serie < 466))
+    {
+        mandocombinado = 2;
+        mandoCombinadoPrefijada = true;
+        mandoATOengine = false;
+        maxSpeed = serie == 450 ? 140 : (serie == 446 ? 100 : 120);
+    }
+    if (serie == 130)
+    {
+        mandocombinado = 1;
+        mandoCombinadoPrefijada = false;
+        mandoATOengine = true;
+        maxSpeed = 250;
+    }
+    
+    SetParameters();
     s_client = TCPclient::connect_to_server(poller);
     s_client->WriteLine("register(speed)");
     while(s_client->connected) {
-        int nfds = poller->poll(100);
+        int nfds = poller->poll(10000);
         if (nfds == 0)
             continue;
         if (nfds == -1) {
@@ -337,10 +368,10 @@ int main()
         s_client->handle();
         string s = s_client->ReadLine();
         while(s!="") {
-            ParseLine(s_client, s, GetParameter, [](client *c, Parameter *p) {parameters.erase(p);});
+            manager.ParseLine(s_client, s);
             s = s_client->ReadLine();
         }
-        for_each(parameters.begin(), parameters.end(), [](Parameter* p){p->Send();});
+        for_each(manager.parameters.begin(), manager.parameters.end(), [](Parameter* p){p->Send();});
         
         int c;
         if(State.Modocond == 2)

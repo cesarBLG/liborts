@@ -4,10 +4,15 @@
 #include <functional>
 #include <map>
 #include <set>
+#include <vector>
 #include <cmath>
 #include "client.h"
 namespace ORserver
-{
+{   
+    class Parameter;
+    std::vector<std::string> SplitTopic(std::string s);
+    bool ParseParenthesis(std::string line, std::string &before, std::string &inside);
+    
     class ParameterData
     {
     public:
@@ -76,17 +81,32 @@ namespace ORserver
             return outdated;
         }
     };
+    class Topic
+    {
+        Topic *parent;
+        std::set<Parameter*> parameters;
+        std::set<Topic*> subtopics;
+        std::string topic_name;
+        public:
+        Topic(Topic *parent, std::string name) : parent(parent), topic_name(name) {}
+        void insert(Parameter *p, int depth=0);
+        void erase(Parameter *p, int depth=0);
+        std::set<Parameter*> GetAllMatches(std::vector<std::string> match);
+        Parameter *GetMatch(std::vector<std::string> match);
+    };
     class Parameter
     {
         public:
         ParameterData *data;
+        std::set<client*> providers;
         std::set<client*> clients;
-        std::set<client*> registerPetitionSent;
-        const std::string name;
         std::function<std::string()> GetValue = nullptr;
         std::function<void(std::string)> SetValue = nullptr;
+        const std::string name;
+        std::vector<std::string> split_name;
         Parameter(std::string name) : name(name)
         {
+            split_name = SplitTopic(name);
             data = ParameterData::construct(name);
         }
         virtual ~Parameter() 
@@ -133,10 +153,30 @@ namespace ORserver
             return set;
         }
     };
-    void ParseLine(client *c, std::string line, std::function<Parameter*(std::string)> GetParameter,  std::function<void(client *, Parameter*)> unregister);
-    bool ParseParenthesis(std::string line, std::string &before, std::string &inside);
+    class ParameterManager
+    {
+        protected:
+        Topic parent_topic;
+        virtual void function_call(client *c, std::string fun, std::string param);
+        virtual Parameter *GetParameter(std::string name);
+        public:
+        std::set<Parameter*> parameters;
+        ParameterManager() : parent_topic(nullptr,"") {}
+        virtual ~ParameterManager() {}
+        void AddParameter(Parameter *p)
+        {
+            parameters.insert(p);
+            parent_topic.insert(p);
+        }
+        void RemoveParameter(Parameter *p)
+        {
+            parameters.erase(p);
+            parent_topic.erase(p);
+        }
+        void ParseLine(client *c, std::string line);
+    };
 }
-extern "C" {
+/*extern "C" {
 void ParseLine(void *hclient, const char* line, void *getparameter, void *unregister);
 int ParseParenthesis(const char *line, char *before, char *inside, int bcount, int icount);
 void parameter_send(void *parameter);
@@ -144,5 +184,5 @@ void parameter_setvaluefun(void *parameter, void (*setvalue)(const char*));
 void parameter_getvaluefun(void *parameter, void (*getvalue)(char*, int));
 void parameter_getvalue(void *parameter, char *data, int size);
 void parameter_setvalue(void *parameter, const char *data);
-}
+}*/
 #endif

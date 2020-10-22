@@ -83,13 +83,13 @@ class poll_poll : public fdwait
         fds.push_back(p);
         fdindex[fd] = fds.size()-1;
     }
-    void remove(event ev)
+    void remove(event ev) override
     {
         int fd = ev.id;
         //printf("%d\n", fd);
         fds.erase(fds.begin() + fdindex[fd]);
     }
-    int get_events(event ev)
+    int get_events(event ev) override
     {
         int fd = ev.id;
         return fds[fdindex[fd]].revents;
@@ -126,7 +126,7 @@ class epoll_poll : public fdwait
         if(epoll_ctl(epollfd, EPOLL_CTL_DEL, fd, nullptr)==-1)
             perror("epoll_ctl");
     }
-    int get_events(event ev)
+    int get_events(event ev) override
     {
         int fd = ev.id;
         return eventmap[fd];
@@ -170,7 +170,7 @@ class select_poll : public fdwait
         FD_CLR(fd, &except_orig);
         fds.erase(fd);
     }
-    int get_events(event ev)
+    int get_events(event ev) override
     {
         int fd = ev.id;
         return (FD_ISSET(fd, &read) * POLLREAD) | (FD_ISSET(fd, &except) * POLLERROR);

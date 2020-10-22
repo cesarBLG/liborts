@@ -2,3 +2,17 @@ throttle VirtualThrottle set autoscale 0 1
 dynamic_brake DynamicBrake set autoscale 0 1
 speed SpeedometerKPH get noscale
 reverser Reverser set autoscale -1 1
+asfa::frecuencia CaptadorASFA get noscale
+asfa::emergency EmergencyBrake set noscale
+asfa::pulsador::anpar ASFA_AParada get noscale integer
+asfa::pulsador::anpre ASFA_APrec get noscale integer
+asfa::pulsador::prepar ASFA_PAParada get noscale integer
+asfa::pulsador::rearme ASFARearme get noscale integer
+asfa::pulsador::modo ASFAModo get noscale integer
+asfa::pulsador::ocultación ASFAOcul get noscale integer
+asfa::pulsador::alarma ASFAAlarma get noscale integer
+asfa::pulsador::rebase ASFAReb get noscale integer
+asfa::pulsador::lvi ASFA_LTV get noscale integer
+asfa::pulsador::pn ASFA_PN get noscale integer
+asfa::pulsador::aumento ASFAAument get noscale integer
+asfa::pulsador::conex ASFAActivo get noscale integer

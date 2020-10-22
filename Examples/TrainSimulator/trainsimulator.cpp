@@ -55,8 +55,6 @@ struct Controller
     float min;
     float max;
     string own_name;
-    function<string()> get;
-    function<void(string)> set;
     bool operator<(const Controller c) const
     {
         return index<c.index;
@@ -70,42 +68,14 @@ struct ControllerMap
     bool set;
     bool scale;
     bool autoscale;
+    bool integer;
     double scaleval[4];
 };
 vector<Controller> controllers;
 #define CONTROLLER_GET 0
 #define CONTROLLER_MIN 1
 #define CONTROLLER_MAX 2
-Controller GetControllerByOwnName(string name)
-{
-    for(auto it=controllers.begin(); it!=controllers.end(); ++it) {
-        if(it->own_name == name)
-            return *it;
-    }
-    Controller c;
-    c.index = -1;
-    return c;
-}
-set<Parameter*> parameters; 
-Parameter *GetParameter(string name)
-{
-    for(auto it=parameters.begin(); it!=parameters.end(); ++it) {
-        if(**it==name) return *it;
-    }
-    Controller c = GetControllerByOwnName(name);
-    if(c.index == -1)
-        return nullptr;
-    Parameter *p = new Parameter(name);
-    if(c.get != nullptr) {
-        p->GetValue = [c] {return c.get();};
-    }
-    if(c.set != nullptr) {
-        p->SetValue = [c](string val) {c.set(val);};
-    }
-    p->add_register(tcp_client);
-    parameters.insert(p);
-    return p;
-}
+ParameterManager manager;
 inline float map_values(float val, float min0, float max0, float min1, float max1)
 {
     return (val-min0)*(max1-min1)/(max0-min0)+min1;
@@ -126,8 +96,9 @@ int main()
         connected = (GetLocoName()!=0 && *GetLocoName()!=0);
         Sleep(1000);
     }
-    cout<<"Connected"<<endl;
+    cout<<"Connected to "<<GetLocoName()<<endl;
     string contlist = GetControllerList();
+    cout<<contlist<<endl;
     size_t pos = contlist.find(':');
     for(int i=0; ; i++) {
         Controller c;
@@ -140,7 +111,6 @@ int main()
             break;
         contlist = contlist.substr(pos+2);
         pos = contlist.find(':');
-        i++;
     }
     vector<ControllerMap> cmap;
     ifstream maps("maps.txt");
@@ -171,6 +141,8 @@ int main()
                 m.scaleval[3] = stoi(d);
             }
         }
+        s>>d;
+        m.integer = d.find("integer") != string::npos;
         cmap.push_back(m);
     }
     threadwait *poller = new threadwait();
@@ -181,10 +153,11 @@ int main()
             Controller &c = controllers[i];
             ControllerMap &m = cmap[j];
             if(c.name == m.name) {
-                tcp_client->WriteLine("register("+m.own_name+")");
                 c.own_name = m.own_name;
-                if(m.set)
-                    c.set = [c, m](string val) {
+                Parameter *p = new Parameter(m.own_name);
+                if(m.set) {
+                    tcp_client->WriteLine("register("+m.own_name+")");
+                    p->SetValue = [c, m](string val) {
                         float valf = stof(val);
                         if(m.scale) {
                             if(m.autoscale)
@@ -194,17 +167,27 @@ int main()
                         }
                         SetControllerValue(c.index, valf);
                     };
-                if(m.get)
-                    c.get = [c, m]() {
+                }
+                if(m.get) {
+                    p->GetValue = [c, m]() {
                         float val = GetControllerValue(c.index, CONTROLLER_GET);
+                        if (m.own_name == "asfa::frecuencia")
+                        {
+                            if (val <= 0) return string("FP");
+                            SetControllerValue(c.index, 0);
+                            return "L"+to_string((int)val);
+                        }
                         if(m.scale) {
                             if(m.autoscale)
                                 val = map_values(val, c.min, c.max, m.scaleval[0], m.scaleval[1]);
                             else
                                 val = map_values(val, m.scaleval[2], m.scaleval[3], m.scaleval[0], m.scaleval[1]);
                         }
+                        if (m.integer) return to_string((int)val);
                         return to_string(val);
                     };
+                }
+                manager.AddParameter(p);
             }
         }
     }
@@ -219,10 +202,10 @@ int main()
         tcp_client->handle();
         string s = tcp_client->ReadLine();
         while(s!="") {
-            ParseLine(tcp_client, s, GetParameter, [](client *c, Parameter *p) {parameters.erase(p);});
+            manager.ParseLine(tcp_client, s);
             s = tcp_client->ReadLine();
         }
-        for_each(parameters.begin(), parameters.end(), [](Parameter* p){p->Send();});
+        for_each(manager.parameters.begin(), manager.parameters.end(), [](Parameter* p){p->Send();});
     }
     delete tcp_client;
     delete poller;
