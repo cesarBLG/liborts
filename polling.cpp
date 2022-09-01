@@ -1,5 +1,5 @@
 #include "polling.h"
-#ifdef __linux__
+#ifdef __linux__r
 #define USE_EPOLL
 #elif defined unix
 #define USE_POLL

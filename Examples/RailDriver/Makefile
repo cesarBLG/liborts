@@ -1,4 +1,4 @@
-CXX = g++
+CXX = g++ -D_GLIBCXX_DEBUG
 CC = gcc
 AR = ar
 LDFLAGS = -L../.. -lorts -pthread

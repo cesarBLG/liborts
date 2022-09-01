@@ -3,16 +3,30 @@ dynamic_brake DynamicBrake set autoscale 0 1
 speed SpeedometerKPH get noscale
 reverser Reverser set autoscale -1 1
 asfa::frecuencia CaptadorASFA get noscale
-asfa::emergency EmergencyBrake set noscale
-asfa::pulsador::anpar ASFA_AParada get noscale integer
-asfa::pulsador::anpre ASFA_APrec get noscale integer
-asfa::pulsador::prepar ASFA_PAParada get noscale integer
-asfa::pulsador::rearme ASFARearme get noscale integer
-asfa::pulsador::modo ASFAModo get noscale integer
-asfa::pulsador::ocultación ASFAOcul get noscale integer
-asfa::pulsador::alarma ASFAAlarma get noscale integer
-asfa::pulsador::rebase ASFAReb get noscale integer
-asfa::pulsador::lvi ASFA_LTV get noscale integer
-asfa::pulsador::pn ASFA_PN get noscale integer
-asfa::pulsador::aumento ASFAAument get noscale integer
-asfa::pulsador::conex ASFAActivo get noscale integer
+asfa::emergency EmergencyBrake set noscale integer
+asfa::pulsador::conex ASFADbt01 set noscale integer
+asfa::pulsador::modo ASFADbt02 set noscale integer
+asfa::pulsador::rearme ASFADbt03 set noscale integer
+asfa::pulsador::rebase ASFADbt04 set noscale integer
+asfa::pulsador::aumento ASFADbt05 set noscale integer
+asfa::pulsador::basico ASFADbt06 set noscale integer
+asfa::pulsador::alarma ASFADbt07 set noscale integer
+asfa::pulsador::ocultacion ASFADbt08 set noscale integer
+asfa::pulsador::lvi ASFADbt09 set noscale integer
+asfa::pulsador::pn ASFADbt10 set noscale integer
+asfa::pulsador::anpar ASFADbt11 set noscale integer
+asfa::pulsador::anpre ASFADbt12 set noscale integer
+asfa::pulsador::prepar ASFADbt13 set noscale integer
+asfa::pulsador::prepar ASFADbt13a set noscale integer
+asfa::pulsador::ilum::conex ASFADbtluz1 get noscale integer
+asfa::pulsador::ilum::modo ASFADbtluz2 get noscale integer
+asfa::pulsador::ilum::rearme ASFADbtluz3 get noscale integer
+asfa::pulsador::ilum::rebase ASFADbtluz4 get noscale integer
+asfa::pulsador::ilum::aumento ASFADbtluz5 get noscale integer
+asfa::pulsador::ilum::alarma ASFADbtluz7 get noscale integer
+asfa::pulsador::ilum::lvi ASFADbtluz8 get noscale integer
+asfa::pulsador::ilum::pn ASFADbtluz9 get noscale integer
+asfa::pulsador::ilum::anpar ASFADbtluz10 get noscale integer
+asfa::pulsador::ilum::anpre ASFADbtluz11 get noscale integer
+asfa::pulsador::ilum::prepar ASFADbtluz13 get noscale integer
+asfa::pulsador::ilum::vlcond ASFADbtluz12 get noscale integer

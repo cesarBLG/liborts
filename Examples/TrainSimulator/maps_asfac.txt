@@ -1,0 +1,22 @@
+throttle VirtualThrottle set autoscale 0 1
+dynamic_brake DynamicBrake set autoscale 0 1
+speed SpeedometerKPH get noscale
+reverser Reverser set autoscale -1 1
+asfa::frecuencia CaptadorASFA get noscale
+asfa::emergency EmergencyBrake set noscale integer
+asfa::llave ASFA_LLAVE set autoscale 0 2
+asfa::pulsador::conex ASFA_BT_CONEX set noscale
+asfa::pulsador::rec ASFA_BT_REC set noscale
+asfa::pulsador::rearme ASFA_BT_REARME set noscale
+asfa::pulsador::rebase ASFA_BT_REBASE set noscale
+asfa::pulsador::alarma ASFA_BT_ALARMA set noscale
+asfa::luz::conex ASFA_LUZ_CONEX get noscale
+asfa::luz::frenar ASFA_LUZ_FRENAR get noscale
+asfa::luz::rec ASFA_LUZ_REC get noscale
+asfa::luz::rearme ASFA_LUZ_REARME get noscale
+asfa::luz::rebase ASFA_LUZ_REBAUTO get noscale
+asfa::luz::alarma ASFA_LUZ_ALARMA get noscale
+asfa::luz::l2 ASFA_LUZ_VERDE get noscale
+asfa::luz::eficacia ASFA_LUZ_EFICACIA get noscale
+asfa::luz::rojo ASFA_LUZ_ROJA get noscale
+asfa::zumbador ASFA_BEEP get noscale

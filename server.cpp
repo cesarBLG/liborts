@@ -38,7 +38,7 @@ namespace ORserver
         set<client*> clients;
         map<Register, set<client*>> registers;
         public:
-        Server();
+        Server(bool is_local);
         Parameter *GetParameter(string parameter) override;
         void unregister(client *c, Parameter *p);
         void AddClient(client *c);
@@ -136,11 +136,12 @@ void server_broadcast()
             continue;
         }
 #ifdef _WIN32
-        char br = '1';
+        BOOL br = 1;
+        if(setsockopt(sock, SOL_SOCKET, SO_BROADCAST, (char*)&br, sizeof(BOOL))==-1)
 #else
         int br = 1;
-#endif
         if(setsockopt(sock, SOL_SOCKET, SO_BROADCAST, &br, sizeof(br))==-1)
+#endif
         {
             perror("UDP server");
 #ifdef _WIN32
@@ -154,11 +155,7 @@ void server_broadcast()
         struct sockaddr_in addr;
         addr.sin_family = AF_INET;
         addr.sin_port = htons(5091);
-#ifdef RELEASE
-        addr.sin_addr.s_addr = inet_addr("127.0.0.1");
-#else
         addr.sin_addr.s_addr = INADDR_BROADCAST;
-#endif
         while(sendto(sock, msg, sizeof(msg), 0,(struct sockaddr *)&(addr), sizeof(struct sockaddr_in))==-1)
         {
             std::this_thread::sleep_for(std::chrono::milliseconds(300));
@@ -181,21 +178,21 @@ class SerialManager
     {
 #ifndef RELEASE
 #ifdef WIN32
-        connectable.insert("COM5");
+        /*connectable.insert("COM5");
         connectable.insert("COM6");
         connectable.insert("COM7");
         connectable.insert("COM8");
         connectable.insert("COM9");
-        connectable.insert("COM10");
+        connectable.insert("COM10");*/
 #else
-        connectable.insert("/dev/ttyACM0");
+        /*connectable.insert("/dev/ttyACM0");
         connectable.insert("/dev/ttyACM1");
         connectable.insert("/dev/ttyACM2");
         connectable.insert("/dev/ttyACM3");
         connectable.insert("/dev/ttyUSB0");
         connectable.insert("/dev/ttyUSB1");
         connectable.insert("/dev/ttyUSB2");
-        connectable.insert("/dev/ttyUSB3");
+        connectable.insert("/dev/ttyUSB3");*/
 #endif
 #endif
     }
@@ -222,10 +219,18 @@ class SerialManager
         return avail;
     }
 };
-int main()
+int main(int argc, char **argv)
 {
     cout<<"Servidor de comunicación entre periféricos y simulador."<<endl;
     cout<<"Por favor, no cierre esta ventana mientras quiera utilizar el simulador"<<endl;
+    
+    bool local_server = false;
+    if (argc > 1 && argv[1][0] == 'l')
+    {
+        local_server = true;
+        cout<<"Servidor local"<<endl;
+    }
+    
 #ifndef _WIN32
     signal(SIGINT, quit);
     signal(SIGPIPE, SIG_IGN);
@@ -236,11 +241,11 @@ int main()
         return execl("raildriver", "raildriver", (char *)nullptr);
     }
 #endif
-    Server *s = new Server();
+    Server *s = new Server(local_server);
     delete s;
     return 0;
 }
-Server::Server()
+Server::Server(bool is_local)
 {
 #ifdef _WIN32
     WSADATA wsa;
@@ -250,16 +255,16 @@ Server::Server()
     struct sockaddr_in serv;
     serv.sin_family = AF_INET;
     serv.sin_port = htons(5090);
-#ifdef RELEASE
-    serv.sin_addr.s_addr = INADDR_LOOPBACK;
-#else
     serv.sin_addr.s_addr = INADDR_ANY;
-#endif
     if (server == -1) {
         perror("socket");
         return;
     }
-    int ra=1;
+#ifdef _WIN32
+    char ra = 1;
+#else
+    int ra = 1;
+#endif
     if(setsockopt(server, SOL_SOCKET, SO_REUSEADDR, &ra, sizeof(ra))==-1) {
         perror("setsockopt");
         return;
@@ -274,26 +279,30 @@ Server::Server()
     }
     evwait *poller = new threadwait();
     poller->add({FD, server});
-    thread broadcast(server_broadcast);
-/*#ifdef WIN32
-    string port;
+    thread broadcast;
+    if (is_local) AddClient(TCPclient::connect_to_server(poller));
+    else broadcast = thread(server_broadcast);
+#ifdef WIN32
+    /*string port;
     cout<<"Escriba numero de puerto: ";
     cin>>port;
-    AddClient(new SerialClient(port, 115200, poller));
-#endif*/
+    auto cl = new SerialClient(port, 115200, poller);
+    this_thread::sleep_for(chrono::seconds(3));
+    AddClient(cl);*/
+#endif
     SerialManager serial;
     bool err = false;
     while (go) {
-        //auto t1 = chrono::system_clock::now();
-        int nfds = poller->poll(5000);
-        //auto t2 = chrono::system_clock::now();
-        //cout<<chrono::duration_cast<chrono::duration<int, milli>>(t2-t1).count()<<endl;
         auto ser = serial.available();
         for(auto it=ser.begin(); it!=ser.end(); ++it)
         {
             AddClient(new SerialClient(*it, 115200, poller));
             cout<<"Added "<<*it<<endl;
         }
+        //auto t1 = chrono::system_clock::now();
+        int nfds = poller->poll(5000);
+        //auto t2 = chrono::system_clock::now();
+        //cout<<chrono::duration_cast<chrono::duration<int, milli>>(t2-t1).count()<<endl;
         if (nfds == 0) {
             continue;
         }
@@ -328,6 +337,7 @@ Server::Server()
             (*it)->handle();
             string s = (*it)->ReadLine();
             while (s != "") {
+                cout<<s<<endl;
                 ParseLine(*it, s);
                 s = (*it)->ReadLine();
             }
@@ -351,7 +361,7 @@ Server::Server()
 #else
     close(server);
 #endif
-    broadcast.join();
+    if (!is_local) broadcast.join();
 }
 Parameter* Server::GetParameter(string parameter)
 {
@@ -418,5 +428,10 @@ void Server::function_call(client *c, string fun, string param)
         }
         temp.erase(p);
         delete p;
+    } else if (fun == "get") {
+        Register r(param);
+        for (Parameter *p : parent_topic.GetAllMatches(r.topic)) {
+            c->WriteLine(p->name + '=' + p->GetValue());
+        }
     }
 }

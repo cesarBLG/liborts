@@ -105,11 +105,11 @@ void ParameterManager::ParseLine(client *c, string line)
 {
     string fun;
     string param;
-    if (ParseParenthesis(line, fun, param)) {
+    string::size_type eq = line.find_first_of('=');
+    if (line.find_first_of('(')<eq && ParseParenthesis(line, fun, param)) {
         function_call(c, fun, param);
     }
     else {
-        string::size_type eq = line.find_first_of('=');
         if (eq == string::npos)
             return;
         string parameter = line.substr(0, eq);

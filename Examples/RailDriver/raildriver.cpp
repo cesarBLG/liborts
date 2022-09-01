@@ -87,7 +87,7 @@ string getFunction(string param, string val)
 }
 float speed=0;
 POSIXclient *s_client;
-int serie=446;
+int serie=465;
 bool mandoCombinadoPrefijada=true;
 bool mandoATOengine=false;
 int maxSpeed=120;
@@ -287,6 +287,7 @@ int prevc=-1;
 int main(int argc, char** argv)
 {
     if (argc>1) serie = atoi(argv[1]);
+    if (serie == 465) DynamicBrakeSetup = 145;
 #ifdef _WIN32
     WSADATA wsa;
     WSAStartup(MAKEWORD(2,2), &wsa);

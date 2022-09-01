@@ -11,7 +11,6 @@
 #include <mutex>
 #include <functional>
 #include <fstream>
-#include "liborts_setup.h"
 using namespace std;
 using namespace ORserver;
 TCPclient *tcp_client;
@@ -71,15 +70,14 @@ struct ControllerMap
     bool integer;
     double scaleval[4];
 };
-vector<Controller> controllers;
 #define CONTROLLER_GET 0
 #define CONTROLLER_MIN 1
 #define CONTROLLER_MAX 2
-ParameterManager manager;
 inline float map_values(float val, float min0, float max0, float min1, float max1)
 {
     return (val-min0)*(max1-min1)/(max0-min0)+min1;
 }
+bool connect();
 int main()
 {
     WSADATA wsa;
@@ -87,6 +85,11 @@ int main()
     load_dll();
     cout<<"Waiting for connection..."<<endl;
     Sleep(1000);
+    while(connect()){};
+    return 0;
+}
+bool connect()
+{
     bool connected = false;
     while(!connected)
     {
@@ -96,7 +99,12 @@ int main()
         connected = (GetLocoName()!=0 && *GetLocoName()!=0);
         Sleep(1000);
     }
+    GetRailSimLocoChanged();
     cout<<"Connected to "<<GetLocoName()<<endl;
+    
+    vector<Controller> controllers;
+    ParameterManager manager;
+    
     string contlist = GetControllerList();
     cout<<contlist<<endl;
     size_t pos = contlist.find(':');
@@ -199,6 +207,11 @@ int main()
             perror("poll");
             break;
         }
+        if (GetRailSimLocoChanged()) {
+            delete tcp_client;
+            delete poller;
+            return true;
+        }
         tcp_client->handle();
         string s = tcp_client->ReadLine();
         while(s!="") {
@@ -209,5 +222,5 @@ int main()
     }
     delete tcp_client;
     delete poller;
-    return 0;
+    return false;
 }

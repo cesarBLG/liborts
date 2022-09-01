@@ -59,7 +59,7 @@ namespace ORserver
                 connected = false;
                 return;
             }
-            char data[1024];
+            char data[1025];
             int c = read(fd, data, 1024);
             if (c == 0 || c== -1) {
                 if (c == -1) {
@@ -120,16 +120,14 @@ namespace ORserver
     }
     TCPclient* TCPclient::connect_to_server(evwait *p)
     {
-#ifdef RELEASE
-        return new TCPclient("127.0.0.1", 5090, p);
-#endif
         int sock = socket(AF_INET,SOCK_DGRAM,0);
 #ifdef _WIN32
-        char br = '1';
+        BOOL br = 1;
+        if(setsockopt(sock, SOL_SOCKET, SO_BROADCAST, (char*)&br, sizeof(BOOL))==-1)
 #else
         int br = 1;
-#endif
         if(setsockopt(sock, SOL_SOCKET, SO_BROADCAST, &br, sizeof(br))==-1)
+#endif
         {
             perror("setsockopt");
             return new TCPclient("127.0.0.1", 5090, p);
@@ -140,7 +138,7 @@ namespace ORserver
         addr.sin_addr.s_addr = INADDR_ANY;
         for(int i=0; ; i++)
         {
-            if(bind(sock,(struct sockaddr*)&(addr), sizeof(struct sockaddr_in))==-1) {
+            if(::bind(sock,(struct sockaddr*)&(addr), sizeof(struct sockaddr_in))==-1) {
 #ifndef _WIN32
                 if (errno == EADDRINUSE && i<5) {
                     sleep(1);
@@ -152,7 +150,7 @@ namespace ORserver
             }
             break;
         }
-        char buff[20];
+        char buff[25];
         struct sockaddr_in from;
 #ifdef _WIN32
         int size = sizeof(struct sockaddr_in);
@@ -161,13 +159,13 @@ namespace ORserver
 #endif
         
         struct timeval tv;
-        tv.tv_sec = 1;
+        tv.tv_sec = 5;
         tv.tv_usec = 0;
         fd_set fds;
         FD_ZERO(&fds) ;
         FD_SET(sock, &fds);
         if (select(sock+1, &fds, nullptr, nullptr, &tv) == 1) {
-            if (recvfrom(sock,buff,20,0,(struct sockaddr*)&from,&size) != -1) {
+            if (recvfrom(sock,buff,25,0,(struct sockaddr*)&from,&size) != -1) {
                 string ip = inet_ntoa(from.sin_addr);
 #ifdef _WIN32
                 shutdown(sock, SD_BOTH);
@@ -181,6 +179,7 @@ namespace ORserver
 #endif
                 return new TCPclient(ip, 5090, p);
             }
+            perror("recvfrom");
         }
 #ifdef _WIN32
         shutdown(sock, SD_BOTH);
@@ -253,6 +252,7 @@ namespace ORserver
     }
     void WindowsClient::handle()
     {
+        if (!connected) return;
         int revents = poller->get_events({WINHANDLE, ov.hEvent});
         if (revents>0) {
             if(revents & POLLERROR) {
@@ -267,7 +267,7 @@ namespace ORserver
                 WaitCommEvent(hComm, &evmask, &ov);
                 return;
             }
-            char data[50];
+            char data[51];
             if(toread>50)
                 toread = 50;
             OVERLAPPED ovRead = {0};
