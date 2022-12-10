@@ -11,6 +11,7 @@
 #include <mutex>
 #include <functional>
 #include <fstream>
+#include <chrono>
 using namespace std;
 using namespace ORserver;
 TCPclient *tcp_client;
@@ -88,6 +89,8 @@ int main()
     while(connect()){};
     return 0;
 }
+double dist = 0;
+double speed = 0;
 bool connect()
 {
     bool connected = false;
@@ -185,6 +188,10 @@ bool connect()
                             SetControllerValue(c.index, 0);
                             return "L"+to_string((int)val);
                         }
+                        if (m.own_name == "speed")
+                        {
+                            speed = val;
+                        }
                         if(m.scale) {
                             if(m.autoscale)
                                 val = map_values(val, c.min, c.max, m.scaleval[0], m.scaleval[1]);
@@ -199,6 +206,13 @@ bool connect()
             }
         }
     }
+    dist = 0;
+    Parameter *p = new Parameter("distance");
+    p->GetValue = []() {
+        return to_string(dist);
+    };
+    manager.AddParameter(p);
+    auto prev = std::chrono::system_clock::now();
     while(tcp_client->connected && connected) {
         int nfds = poller->poll(100);
         if (nfds == 0)
@@ -212,6 +226,11 @@ bool connect()
             delete poller;
             return true;
         }
+        auto now = std::chrono::system_clock::now();
+        std::chrono::duration<double> diff = now - prev;
+        int d = std::chrono::duration_cast<std::chrono::duration<int, std::micro>>(diff).count();
+        prev = now;
+        dist += speed/3.6*d/1e6;
         tcp_client->handle();
         string s = tcp_client->ReadLine();
         while(s!="") {

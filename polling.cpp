@@ -86,13 +86,20 @@ class poll_poll : public fdwait
     void remove(event ev) override
     {
         int fd = ev.id;
-        //printf("%d\n", fd);
-        fds.erase(fds.begin() + fdindex[fd]);
+        int orig_index = fdindex[fd];
+        fdindex.erase(fd);
+        fds.erase(fds.begin() + orig_index);
+        for (auto it = fdindex.begin(); it != fdindex.end(); ++it)
+        {
+            if (it->second > orig_index) --it->second;
+        }
     }
     int get_events(event ev) override
     {
         int fd = ev.id;
-        return fds[fdindex[fd]].revents;
+        auto it = fdindex.find(fd);
+        if (it == fdindex.end()) return POLLERROR;
+        return fds[it->second].revents;
     }
     int poll(int timeout)
     {

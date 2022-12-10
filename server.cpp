@@ -185,14 +185,14 @@ class SerialManager
         connectable.insert("COM9");
         connectable.insert("COM10");*/
 #else
-        /*connectable.insert("/dev/ttyACM0");
+        connectable.insert("/dev/ttyACM0");
         connectable.insert("/dev/ttyACM1");
         connectable.insert("/dev/ttyACM2");
         connectable.insert("/dev/ttyACM3");
         connectable.insert("/dev/ttyUSB0");
         connectable.insert("/dev/ttyUSB1");
         connectable.insert("/dev/ttyUSB2");
-        connectable.insert("/dev/ttyUSB3");*/
+        connectable.insert("/dev/ttyUSB3");
 #endif
 #endif
     }
@@ -337,7 +337,6 @@ Server::Server(bool is_local)
             (*it)->handle();
             string s = (*it)->ReadLine();
             while (s != "") {
-                cout<<s<<endl;
                 ParseLine(*it, s);
                 s = (*it)->ReadLine();
             }
