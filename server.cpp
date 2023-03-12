@@ -7,8 +7,8 @@
 #include <winsock2.h>
 #include <windows.h>
 #endif
-#include "client.h"
-#include "common.h"
+#include <orts/client.h>
+#include <orts/common.h>
 #include <vector>
 #include <set>
 #include <map>
@@ -185,14 +185,14 @@ class SerialManager
         connectable.insert("COM9");
         connectable.insert("COM10");*/
 #else
-        connectable.insert("/dev/ttyACM0");
+        /*connectable.insert("/dev/ttyACM0");
         connectable.insert("/dev/ttyACM1");
         connectable.insert("/dev/ttyACM2");
         connectable.insert("/dev/ttyACM3");
         connectable.insert("/dev/ttyUSB0");
         connectable.insert("/dev/ttyUSB1");
         connectable.insert("/dev/ttyUSB2");
-        connectable.insert("/dev/ttyUSB3");
+        connectable.insert("/dev/ttyUSB3");*/
 #endif
 #endif
     }
@@ -234,12 +234,6 @@ int main(int argc, char **argv)
 #ifndef _WIN32
     signal(SIGINT, quit);
     signal(SIGPIPE, SIG_IGN);
-    int pid = fork();
-    if(pid == 0) {
-        //int fd = open("raildriver.log", O_WRONLY | O_CREAT);
-        //dup2(fd, 1);
-        return execl("raildriver", "raildriver", (char *)nullptr);
-    }
 #endif
     Server *s = new Server(local_server);
     delete s;

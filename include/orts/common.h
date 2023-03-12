@@ -6,7 +6,7 @@
 #include <set>
 #include <vector>
 #include <cmath>
-#include "client.h"
+#include <orts/client.h>
 namespace ORserver
 {   
     class Parameter;

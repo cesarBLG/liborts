@@ -1,7 +1,7 @@
 #ifndef _CLIENT_H
 #define _CLIENT_H
 #include <string>
-#include "polling.h"
+#include <orts/polling.h>
 namespace ORserver
 {
     class client

@@ -2,6 +2,7 @@ cmake_minimum_required (VERSION 3.6)
 project (liborts)
 add_library(orts SHARED client.cpp common.cpp polling.cpp)
 target_compile_definitions(orts PUBLIC _GLIBCXX_DEBUG)
+target_include_directories(orts PUBLIC include)
 
 if (NOT ANDROID)
     add_executable(server server.cpp)
