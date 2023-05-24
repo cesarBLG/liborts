@@ -263,7 +263,7 @@ Server::Server(bool is_local)
         perror("setsockopt");
         return;
     }
-    if (bind(server, (struct sockaddr *)&(serv), sizeof(serv)) == -1) {
+    if (::bind(server, (struct sockaddr *)&(serv), sizeof(serv)) == -1) {
         perror("bind");
         return;
     }

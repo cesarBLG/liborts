@@ -165,10 +165,10 @@ void Parameter::Send()
 }
 ExternalParameter::ExternalParameter(string name) : Parameter(name)
 {
-    set = false;
+    this->set = false;
     SetValue = [this](string val)
     {
-        set = true;
+        this->set = true;
         value = val;
         Send();
     };
