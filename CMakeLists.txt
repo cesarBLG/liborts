@@ -1,5 +1,6 @@
 cmake_minimum_required (VERSION 3.6)
 project (liborts)
+set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
 add_library(orts SHARED client.cpp common.cpp polling.cpp)
 target_compile_definitions(orts PUBLIC _GLIBCXX_DEBUG)
 target_include_directories(orts PUBLIC include)
