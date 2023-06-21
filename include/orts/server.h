@@ -1,3 +1,5 @@
+#pragma once
+
 #include <orts/client.h>
 #include <orts/common.h>
 

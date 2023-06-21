@@ -220,6 +220,7 @@ void run_server(Server &srv, bool is_local)
                 client *c = *it;
                 ++it;
                 srv.RemoveClient(c);
+                delete c;
             } else {
                 ++it;
             }

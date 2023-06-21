@@ -131,7 +131,6 @@ void Server::RemoveClient(client *c)
         RemoveParameter(*it);
         delete *it;
     }
-    delete c;
 }
 
 void Server::function_call(client *c, string fun, string param)
