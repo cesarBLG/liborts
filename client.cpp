@@ -27,7 +27,7 @@ int write(int fd, const char *data, unsigned long length)
 #endif
 namespace ORserver
 {
-    void client::start()
+    void clientext::start()
     {
         started = true;
         WriteLine("connected=true");
@@ -40,7 +40,7 @@ namespace ORserver
             perror("set non blocking");
             return;
         }*/
-        client::start();
+        clientext::start();
     }
     void POSIXclient::WriteLine(string line)
     {
@@ -229,7 +229,7 @@ namespace ORserver
     void WindowsClient::start()
     {
         poller->add({WINHANDLE, ov.hEvent});
-        client::start();
+        clientext::start();
         WaitCommEvent(hComm, &evmask, &ov);
     }
     void WindowsClient::WriteLine(string line)
@@ -323,7 +323,7 @@ namespace ORserver
         thr.detach();
     }
 #endif
-    string client::ReadLine()
+    string clientext::ReadLine()
     {
         string::size_type ind = buff.find_first_of("\r\n");
         if(ind != string::npos) {

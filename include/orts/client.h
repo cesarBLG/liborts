@@ -6,30 +6,35 @@ namespace ORserver
 {
     class client
     {
+    public:
+        bool started = false;
+        bool connected = false;
+        virtual void start() = 0;
+        virtual void WriteLine(std::string line) = 0;
+        virtual std::string ReadLine() = 0;
+        virtual void handle() = 0;
+        virtual ~client() = default;
+    };
+    class clientext : public client
+    {
         protected:
         std::string buff;
         public:
-        bool started = false;
         bool connected = false;
-        virtual void start();
-        virtual void WriteLine(std::string line)=0;
-        std::string ReadLine();
         evwait *poller;
-        client(evwait *p) : poller(p) {}
-        virtual void handle()=0;
-        virtual ~client()
-        {
-        }
+        clientext(evwait *p) : poller(p) {}
+        virtual void start() override;
+        virtual std::string ReadLine() override;
     };
-    class POSIXclient : public client
+    class POSIXclient : public clientext
     {   
         protected:
         int fd;
         protected:
-        POSIXclient(evwait *p) : client(p) {}
+        POSIXclient(evwait *p) : clientext(p) {}
         public:
         void start() override;
-        POSIXclient(int fd, evwait *p) : client(p), fd(fd) {};
+        POSIXclient(int fd, evwait *p) : clientext(p), fd(fd) {};
         void WriteLine(std::string line) override;
         void handle() override;
         virtual ~POSIXclient();
@@ -49,17 +54,17 @@ namespace ORserver
         SerialClient(std::string port, int BaudRate, evwait *p);
     };
 #else
-    class WindowsClient : public client
+    class WindowsClient : public clientext
     {
         protected:
         HANDLE hComm;
         OVERLAPPED ov={0};
         DWORD evmask;
-        WindowsClient(evwait *p) : client(p) 
+        WindowsClient(evwait *p) : clientext(p) 
         {
             ov.hEvent = CreateEvent(0,true,0,0);
         }
-        WindowsClient(HANDLE h, evwait *p) : client(p), hComm(h) 
+        WindowsClient(HANDLE h, evwait *p) : clientext(p), hComm(h) 
         {
             ov.hEvent = CreateEvent(0,true,0,0);
         }
