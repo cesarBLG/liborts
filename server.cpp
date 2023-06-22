@@ -7,7 +7,7 @@
 #include <winsock2.h>
 #include <windows.h>
 #endif
-#include <orts/client.h>
+#include <orts/clientext.h>
 #include <orts/common.h>
 #include <orts/server.h>
 #include <vector>
