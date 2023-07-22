@@ -11,5 +11,5 @@ endif
 all: raildriver
 
 raildriver: raildriver.cpp $(LIB)
-	$(CXX) raildriver.cpp -o raildriver -g $(LDFLAGS) -Wall
+	$(CXX) raildriver.cpp -o raildriver -g $(LDFLAGS) -Wall -I../../include
 

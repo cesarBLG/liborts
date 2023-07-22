@@ -12,8 +12,8 @@
 #include <string>
 #include <algorithm>
 #include <iostream>
-#include "../../client.h"
-#include "../../common.h"
+#include <orts/client.h>
+#include <orts/common.h>
 using namespace std;
 using namespace ORserver;
 float FullReversed = 209;
@@ -132,15 +132,15 @@ void SetParameters()
     };
     manager.AddParameter(p);
     
-    p = new Parameter("horn");
+    p = new Parameter("controller::horn");
     p->GetValue = [] {return to_string(State.Horn);};
     manager.AddParameter(p);
     
-    p = new Parameter("bell");
+    p = new Parameter("controller::bell");
     p->GetValue = [] {return to_string(State.Bell);};
     manager.AddParameter(p);
     
-    p = new Parameter("headlight");
+    p = new Parameter("controller::headlight");
     p->GetValue = [] {return to_string(State.Lights);};
     manager.AddParameter(p);
     
