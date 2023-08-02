@@ -206,6 +206,7 @@ void run_server(Server &srv, bool is_local)
                 perror("accept");
                 continue;
             }
+            cout<<"Added TCP client"<<endl;
             srv.AddClient(new TCPclient(cl, poller));
         }
         const std::set<client*> &clients = srv.get_clients();

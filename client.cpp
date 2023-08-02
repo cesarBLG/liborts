@@ -118,9 +118,9 @@ namespace ORserver
         }
 #endif
     }
-    TCPclient* TCPclient::connect_to_server(evwait *p)
+    std::string TCPclient::discover_server_ip()
     {
-        int sock = socket(AF_INET,SOCK_DGRAM,0);
+int sock = socket(AF_INET,SOCK_DGRAM,0);
 #ifdef _WIN32
         BOOL br = 1;
         if(setsockopt(sock, SOL_SOCKET, SO_BROADCAST, (char*)&br, sizeof(BOOL))==-1)
@@ -130,7 +130,7 @@ namespace ORserver
 #endif
         {
             perror("setsockopt");
-            return new TCPclient("127.0.0.1", 5090, p);
+            return "";
         }
         struct sockaddr_in addr;
         addr.sin_family = AF_INET;
@@ -146,7 +146,7 @@ namespace ORserver
                 }
 #endif
                 perror("bind");
-                return new TCPclient("127.0.0.1", 5090, p);
+                return "";
             }
             break;
         }
@@ -177,7 +177,7 @@ namespace ORserver
                 if (close(sock) == -1)
                     perror("close");
 #endif
-                return new TCPclient(ip, 5090, p);
+                return ip;
             }
             perror("recvfrom");
         }
@@ -192,7 +192,13 @@ namespace ORserver
             perror("close");
         }
 #endif
-        return new TCPclient("127.0.0.1", 5090, p);
+        return "";
+    }
+    TCPclient* TCPclient::connect_to_server(evwait *p)
+    {
+        std::string ip = discover_server_ip();
+        if (ip == "") ip = "127.0.0.1";
+        return new TCPclient(ip, 5090, p);
     }
 #ifndef _WIN32
     SerialClient::SerialClient(string port, int BaudRate, evwait *p) : POSIXclient(p)

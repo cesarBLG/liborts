@@ -33,6 +33,7 @@ namespace ORserver
         TCPclient(int fd, evwait *p) : POSIXclient(fd, p) {start();}
         TCPclient(std::string ip, int port, evwait *p);
         ~TCPclient();
+        static std::string discover_server_ip();
         static TCPclient* connect_to_server(evwait *p);
     };
 #ifndef _WIN32
