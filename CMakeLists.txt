@@ -1,7 +1,7 @@
 cmake_minimum_required (VERSION 3.6)
 project (liborts)
 
-add_executable(server server.cpp serverlib.cpp client.cpp common.cpp polling.cpp)
+add_executable(server server.cpp serverlib.cpp client.cpp common.cpp polling.cpp ip_discovery.cpp)
 target_include_directories(server PRIVATE include)
 
 if(WIN32)
