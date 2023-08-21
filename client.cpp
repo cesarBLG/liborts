@@ -111,12 +111,7 @@ namespace ORserver
     TCPclient::~TCPclient()
     {
 #ifdef _WIN32
-        shutdown(fd, SD_BOTH);
         closesocket(fd);
-#else
-        if (shutdown(fd, SHUT_RDWR) == -1) {
-            perror("shutdown");
-        }
 #endif
     }
     TCPclient* TCPclient::connect_to_server(evwait *p)

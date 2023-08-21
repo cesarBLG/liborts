@@ -26,49 +26,68 @@ void quit(int sig)
 }
 void server_broadcast()
 {    
-    char msg[] = "Train Simulator Socket";
+    char msg[] = "Train Simulator Server";
     while(go)
-    {
-        int sock = socket(AF_INET, SOCK_DGRAM, 0);
-        if(sock==-1)
-        {
-            perror("socket");
-            std::this_thread::sleep_for(std::chrono::seconds(1));
-            continue;
-        }
+    { 
+        int sock = socket(AF_INET,SOCK_DGRAM,0);
+        if (sock < 0) return;
 #ifdef _WIN32
-        BOOL br = 1;
-        if(setsockopt(sock, SOL_SOCKET, SO_BROADCAST, (char*)&br, sizeof(BOOL))==-1)
+        char br = 1;
 #else
         int br = 1;
+#endif
         if(setsockopt(sock, SOL_SOCKET, SO_BROADCAST, &br, sizeof(br))==-1)
-#endif
         {
-            perror("UDP server");
-#ifdef _WIN32
-            closesocket(sock);
-#else
-            close(sock);
-#endif
-            std::this_thread::sleep_for(std::chrono::seconds(1));
-            continue;
+            perror("setsockopt");
+            goto cleanup;
         }
-        struct sockaddr_in addr;
-        addr.sin_family = AF_INET;
-        addr.sin_port = htons(5091);
-        addr.sin_addr.s_addr = INADDR_BROADCAST;
-        while(sendto(sock, msg, sizeof(msg), 0,(struct sockaddr *)&(addr), sizeof(struct sockaddr_in))==-1)
+        setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &br, sizeof(br));
+        struct sockaddr_in bind_addr;
+        bind_addr.sin_family = AF_INET;
+        bind_addr.sin_port = htons(5091);
+        bind_addr.sin_addr.s_addr = INADDR_ANY;
+        if(::bind(sock,(struct sockaddr*)&(bind_addr), sizeof(struct sockaddr_in))==-1)
         {
-            std::this_thread::sleep_for(std::chrono::milliseconds(300));
+            perror("bind");
+            goto cleanup;
         }
+        while (go)
+        {
+            struct timeval tv;
+            tv.tv_sec = 1;
+            tv.tv_usec = 0;
+            fd_set fds;
+            FD_ZERO(&fds) ;
+            FD_SET(sock, &fds);
+            int res = select(sock+1, &fds, nullptr, nullptr, &tv);
+            if (res < 0) break;
+            if (res == 1)
+            {
+                char buff[25];
+                recv(sock,buff,25,0);
+                if (std::string(buff) == "Train Simulator Client")
+                {
+                    for (int i=0; i<3; i++)
+                    {
+                        struct sockaddr_in addr;
+                        addr.sin_family = AF_INET;
+                        addr.sin_port = htons(5091);
+                        addr.sin_addr.s_addr = INADDR_BROADCAST;
+                        sendto(sock, msg, sizeof(msg), 0,(struct sockaddr *)&(addr), sizeof(struct sockaddr_in));
+                        std::this_thread::sleep_for(std::chrono::milliseconds(300));
+                    }
+                }
+            }
+        }
+cleanup:
 #ifdef _WIN32
         closesocket(sock);
 #else
-        shutdown(sock, SHUT_RDWR);
         close(sock);
 #endif
-        std::this_thread::sleep_for(std::chrono::milliseconds(300));
+        if (go) std::this_thread::sleep_for(std::chrono::seconds(1));
     }
+
 }
 class SerialManager
 {

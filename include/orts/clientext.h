@@ -8,7 +8,6 @@ namespace ORserver
         protected:
         std::string buff;
         public:
-        bool connected = false;
         evwait *poller;
         clientext(evwait *p) : poller(p) {}
         virtual void start() override;
@@ -25,7 +24,7 @@ namespace ORserver
         POSIXclient(int fd, evwait *p) : clientext(p), fd(fd) {};
         void WriteLine(std::string line) override;
         void handle() override;
-        virtual ~POSIXclient();
+        ~POSIXclient();
     };
     class TCPclient : public POSIXclient
     {
